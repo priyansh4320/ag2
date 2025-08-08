@@ -246,7 +246,14 @@ class OpenAIResponsesClient:
                         "output": content,
                     })
                     break
-            params["input"] = input_items[::-1]
+
+            # Ensure we have at least one valid input item
+            if input_items:
+                params["input"] = input_items[::-1]
+            else:
+                # If no valid input items were created, create a default one
+                # This prevents the API error about missing required parameters
+                params["input"] = [{"role": "user", "content": [{"type": "input_text", "text": "Hello"}]}]
 
         # Initialize tools list
         tools_list = []
@@ -273,6 +280,11 @@ class OpenAIResponsesClient:
                 "Streaming a background response may introduce latency.",
                 UserWarning,
             )
+
+        # Validate that we have at least one of the required parameters
+        if not any(key in params for key in ["input", "previous_response_id", "prompt"]):
+            # If we still don't have any required parameters, create a minimal input
+            params["input"] = [{"role": "user", "content": [{"type": "input_text", "text": "Hello"}]}]
 
         # ------------------------------------------------------------------
         # Structured output handling - mimic OpenAIClient behaviour
