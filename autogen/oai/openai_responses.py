@@ -306,7 +306,6 @@ class OpenAIResponsesClient:
                     kwargs["text_format"] = type_to_response_format_param(rf)
                 if "response_format" in kwargs:
                     kwargs["text_format"] = kwargs.pop("response_format")
-
                 try:
                     return self._oai_client.responses.parse(**kwargs)
                 except TypeError as e:
@@ -325,8 +324,10 @@ class OpenAIResponsesClient:
             response = _create_or_parse(**params)
             self.previous_response_id = response.id
             return response
-
         # No structured output
+        if "verbosity" in params:
+            verbosity = params.pop("verbosity")
+            params["text"] = {"verbosity": verbosity}
         response = self._oai_client.responses.create(**params)
         self.previous_response_id = response.id
 
@@ -339,8 +340,9 @@ class OpenAIResponsesClient:
         self, response
     ) -> Union[list[str], list["ModelClient.ModelClientResponseProtocol.Choice.Message"]]:
         output = getattr(response, "output", [])
-        content = []  # list[dict[str, Union[str, dict[str, Any]]]]]
+        content = []
         tool_calls = []
+
         for item in output:
             # Convert pydantic objects to plain dicts for uniform handling
             if hasattr(item, "model_dump"):
@@ -348,16 +350,26 @@ class OpenAIResponsesClient:
 
             item_type = item.get("type")
 
-            # ------------------------------------------------------------------
-            # 1) Normal messages
-            # ------------------------------------------------------------------
+            # Skip reasoning items - they're not messages
+            if item_type == "reasoning":
+                continue
+
             if item_type == "message":
                 new_item = copy.deepcopy(item)
                 new_item["type"] = "text"
                 new_item["role"] = "assistant"
+
                 blocks = item.get("content", [])
                 if len(blocks) == 1 and blocks[0].get("type") == "output_text":
                     new_item["text"] = blocks[0]["text"]
+                elif len(blocks) > 0:
+                    # Handle multiple content blocks
+                    text_parts = []
+                    for block in blocks:
+                        if block.get("type") == "output_text":
+                            text_parts.append(block.get("text", ""))
+                    new_item["text"] = " ".join(text_parts)
+
                 if "content" in new_item:
                     del new_item["content"]
                 content.append(new_item)
