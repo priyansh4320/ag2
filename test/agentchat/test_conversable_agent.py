@@ -761,9 +761,11 @@ def test_register_for_llm(mock_credentials: Credentials) -> None:
     assert agent2.llm_config["tools"] == expected2
     assert agent3.llm_config["tools"] == expected3
 
-    @agent3.register_for_llm()
-    @agent2.register_for_llm()
-    @agent1.register_for_llm(name="sh", description="run a shell script and return the execution result.")
+    @agent3.register_for_llm(free_form=True)
+    @agent2.register_for_llm(free_form=True)
+    @agent1.register_for_llm(
+        name="sh", description="run a shell script and return the execution result.", free_form=True
+    )
     async def exec_sh(script: Annotated[str, "Valid shell script to execute."]) -> str:
         pass
 
@@ -771,6 +773,7 @@ def test_register_for_llm(mock_credentials: Credentials) -> None:
         {
             "type": "function",
             "function": {
+                "type": "custom",
                 "name": "sh",
                 "description": "run a shell script and return the execution result.",
                 "parameters": {
@@ -955,6 +958,7 @@ def test_register_functions(mock_credentials: Credentials):
         caller=agent,
         executor=user_proxy,
         description="run cell in ipython and return the execution result.",
+        free_form=True,
     )
 
     expected_function_map = {"exec_python": exec_python}
@@ -964,6 +968,7 @@ def test_register_functions(mock_credentials: Credentials):
         {
             "type": "function",
             "function": {
+                "type": "custom",
                 "description": "run cell in ipython and return the execution result.",
                 "name": "exec_python",
                 "parameters": {
@@ -1079,7 +1084,9 @@ async def _test_function_registration_e2e_async(credentials: Credentials) -> Non
         timer_mock(num_seconds=num_seconds)
         return "Timer is done!"
 
-    register_function(timer, caller=coder, executor=user_proxy, description="create a timer for N seconds")
+    register_function(
+        timer, caller=coder, executor=user_proxy, description="create a timer for N seconds", free_form=True
+    )
 
     # An example sync function registered using decorators
     @user_proxy.register_for_execution()

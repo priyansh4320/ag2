@@ -3369,8 +3369,7 @@ class ConversableAgent(LLMAgent):
             raise AssertionError(error_msg)
 
         if free_form:
-            func_sig["type"] = "custom"
-            return
+            func_sig["function"]["type"] = "custom"
 
         if is_remove:
             if "functions" not in self.llm_config or len(self.llm_config["functions"]) == 0:
@@ -3427,8 +3426,7 @@ class ConversableAgent(LLMAgent):
             logger.error(error_msg)
             raise AssertionError(error_msg)
         if free_form:
-            tool_sig["type"] = "custom"
-            return
+            tool_sig["function"]["type"] = "custom"
 
         if is_remove:
             if "tools" not in self.llm_config or len(self.llm_config["tools"]) == 0:
@@ -4097,6 +4095,7 @@ def register_function(
     executor: ConversableAgent,
     name: Optional[str] = None,
     description: str,
+    free_form: bool = False,
 ) -> None:
     """Register a function to be proposed by an agent and executed for an executor.
 
@@ -4111,7 +4110,8 @@ def register_function(
         description: description of the function. The description is used by LLM to decode whether the function
             is called. Make sure the description is properly describing what the function does or it might not be
             called by LLM when needed.
+        free_form: whether to allow the function to be a free-form string.
 
     """
-    f = caller.register_for_llm(name=name, description=description)(f)
+    f = caller.register_for_llm(name=name, description=description, free_form=free_form)(f)
     executor.register_for_execution(name=name)(f)
