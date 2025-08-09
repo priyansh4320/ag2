@@ -692,7 +692,7 @@ def test_message_retrieval_with_real_response_structure():
                         "text": "TERMINATE",
                         "type": "output_text",
                         "logprobs": [],
-                    }
+                    },
                 ],
                 "role": "assistant",
                 "status": "completed",
@@ -719,5 +719,7 @@ def test_message_retrieval_with_real_response_structure():
     assert text_item["type"] == "text"
     assert text_item["role"] == "assistant"
     # Test that multiple blocks are joined with spaces
-    assert text_item["text"] == "New York City: where 'rush hour' lasts all day and finding parking is a sport. TERMINATE"
+    assert (
+        text_item["text"] == "New York City: where 'rush hour' lasts all day and finding parking is a sport. TERMINATE"
+    )
     assert "content" not in text_item
