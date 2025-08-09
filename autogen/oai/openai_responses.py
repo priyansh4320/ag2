@@ -195,6 +195,12 @@ class OpenAIResponsesClient:
             delta_messages.append(m)
         return delta_messages[::-1]
 
+    def _parse_params(self, params: dict[str, Any]) -> None:
+        if "verbosity" in params:
+            verbosity = params.pop("verbosity")
+            params["text"] = {"verbosity": verbosity}
+        return params
+
     def create(self, params: dict[str, Any]) -> "Response":
         """Invoke `client.responses.create() or .parse()`.
 
@@ -337,15 +343,11 @@ class OpenAIResponsesClient:
             self.previous_response_id = response.id
             return response
         # No structured output
-        if "verbosity" in params:
-            verbosity = params.pop("verbosity")
-            params["text"] = {"verbosity": verbosity}
+        params = self._parse_params(params)
         response = self._oai_client.responses.create(**params)
         self.previous_response_id = response.id
-
         # Accumulate image costs
         self._add_image_cost(response)
-
         return response
 
     def message_retrieval(
