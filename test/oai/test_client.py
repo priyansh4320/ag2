@@ -632,7 +632,7 @@ def test_convert_system_role_to_user() -> None:
 
 def test_openai_llm_config_entry():
     openai_llm_config = OpenAILLMConfigEntry(
-        model="gpt-4o-mini", api_key="sk-mockopenaiAPIkeysinexpectedformatsfortestingonly", verbosity="low"
+        model="gpt-4o-mini", api_key="sk-mockopenaiAPIkeysinexpectedformatsfortestingonly"
     )
     assert openai_llm_config.api_type == "openai"
     assert openai_llm_config.model == "gpt-4o-mini"
@@ -641,6 +641,25 @@ def test_openai_llm_config_entry():
     expected = {
         "api_type": "openai",
         "model": "gpt-4o-mini",
+        "api_key": "sk-mockopenaiAPIkeysinexpectedformatsfortestingonly",
+        "tags": [],
+        "stream": False,
+    }
+    actual = openai_llm_config.model_dump()
+    assert actual == expected, f"Expected: {expected}, Actual: {actual}"
+
+
+def test_openai_llm_config_entry_with_verbosity():
+    openai_llm_config = OpenAILLMConfigEntry(
+        model="gpt-5", api_key="sk-mockopenaiAPIkeysinexpectedformatsfortestingonly", verbosity="low"
+    )
+    assert openai_llm_config.api_type == "openai"
+    assert openai_llm_config.model == "gpt-5"
+    assert openai_llm_config.api_key.get_secret_value() == "sk-mockopenaiAPIkeysinexpectedformatsfortestingonly"
+    assert openai_llm_config.base_url is None
+    expected = {
+        "api_type": "openai",
+        "model": "gpt-5",
         "api_key": "sk-mockopenaiAPIkeysinexpectedformatsfortestingonly",
         "tags": [],
         "stream": False,
