@@ -3478,18 +3478,18 @@ class ConversableAgent(LLMAgent):
                 )
             if not free_form:
                 self._assert_valid_name(tool_sig["function"]["name"])
-            if "tools" in self.llm_config and len(self.llm_config["tools"]) > 0:
-                if not silent_override and any(
-                    tool["function"]["name"] == tool_sig["function"]["name"] for tool in self.llm_config["tools"]
-                ):
-                    warnings.warn(f"Function '{tool_sig['function']['name']}' is being overridden.", UserWarning)
-                self.llm_config["tools"] = [
-                    tool
-                    for tool in self.llm_config["tools"]
-                    if tool.get("function", {}).get("name") != tool_sig["function"]["name"]
-                ] + [tool_sig]
-            else:
-                self.llm_config["tools"] = [tool_sig]
+                if "tools" in self.llm_config and len(self.llm_config["tools"]) > 0:
+                    if not silent_override and any(
+                        tool["function"]["name"] == tool_sig["function"]["name"] for tool in self.llm_config["tools"]
+                    ):
+                        warnings.warn(f"Function '{tool_sig['function']['name']}' is being overridden.", UserWarning)
+                    self.llm_config["tools"] = [
+                        tool
+                        for tool in self.llm_config["tools"]
+                        if tool.get("function", {}).get("name") != tool_sig["function"]["name"]
+                    ] + [tool_sig]
+                else:
+                    self.llm_config["tools"] = [tool_sig]
 
         # Do this only if llm_config is a dict. If llm_config is LLMConfig, LLMConfig will handle this.
         if len(self.llm_config["tools"]) == 0 and isinstance(self.llm_config, dict):
