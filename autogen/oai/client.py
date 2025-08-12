@@ -212,6 +212,7 @@ OPENAI_FALLBACK_KWARGS = {
     "default_query",
     "http_client",
     "_strict_response_validation",
+    "webhook_secret",
 }
 
 AOPENAI_FALLBACK_KWARGS = {
@@ -231,6 +232,7 @@ AOPENAI_FALLBACK_KWARGS = {
     "_strict_response_validation",
     "base_url",
     "project",
+    "webhook_secret",
 }
 
 
@@ -247,6 +249,7 @@ class OpenAILLMConfigEntry(LLMConfigEntry):
     tool_choice: Optional[Literal["none", "auto", "required"]] = None
     user: Optional[str] = None
     stream: bool = False
+    verbosity: Optional[Literal["low", "medium", "high"]] = None
     #   The extra_body parameter flows from OpenAILLMConfigEntry to the LLM request through this path:
     #   1. Config Definition: extra_body is defined in OpenAILLMConfigEntry (autogen/oai/client.py:248)
     #   2. Parameter Classification: It's classified as an OpenAI client parameter (not AG2-specific) via the openai_kwargs property (autogen/oai/client.py:752-758)
@@ -513,7 +516,10 @@ class OpenAIClient:
                 if "stream" in kwargs:
                     kwargs.pop("stream")
 
-                if isinstance(kwargs["response_format"], dict):
+                if (
+                    isinstance(kwargs["response_format"], dict)
+                    and kwargs["response_format"].get("type") != "json_object"
+                ):
                     kwargs["response_format"] = {
                         "type": "json_schema",
                         "json_schema": {
@@ -853,17 +859,6 @@ class OpenAIWrapper:
 
     def _configure_azure_openai(self, config: dict[str, Any], openai_config: dict[str, Any]) -> None:
         openai_config["azure_deployment"] = openai_config.get("azure_deployment", config.get("model"))
-        if openai_config["azure_deployment"] is not None:
-            # Preserve dots for specific model versions that require them
-            deployment_name = openai_config["azure_deployment"]
-            if deployment_name in [
-                "gpt-4.1"
-            ]:  # Add more as needed, Whitelist approach so as to not break existing deployments
-                # Keep the deployment name as-is for these specific models
-                pass
-            else:
-                # Remove dots for all other models (maintain existing behavior)
-                openai_config["azure_deployment"] = deployment_name.replace(".", "")
         openai_config["azure_endpoint"] = openai_config.get("azure_endpoint", openai_config.pop("base_url", None))
 
         # Create a default Azure token provider if requested
@@ -889,6 +884,13 @@ class OpenAIWrapper:
         """Update openai_config with Google credentials from config."""
         required_keys = ["gcp_project_id", "gcp_region", "gcp_auth_token"]
         for key in required_keys:
+            if key in config:
+                openai_config[key] = config[key]
+
+    def _configure_openai_config_for_gemini(self, config: dict[str, Any], openai_config: dict[str, Any]) -> None:
+        """Update openai_config with additional gemini genai configs."""
+        optional_keys = ["proxy"]
+        for key in optional_keys:
             if key in config:
                 openai_config[key] = config[key]
 
@@ -932,6 +934,7 @@ class OpenAIWrapper:
             elif api_type is not None and api_type.startswith("google"):
                 if gemini_import_exception:
                     raise ImportError("Please install `google-genai` and 'vertexai' to use Google's API.")
+                self._configure_openai_config_for_gemini(config, openai_config)
                 client = GeminiClient(response_format=response_format, **openai_config)
                 self._clients.append(client)
             elif api_type is not None and api_type.startswith("anthropic"):
@@ -1108,9 +1111,6 @@ class OpenAIWrapper:
             full_config = {**config, **self._config_list[i]}
             # separate the config into create_config and extra_kwargs
             create_config, extra_kwargs = self._separate_create_config(full_config)
-            api_type = extra_kwargs.get("api_type")
-            if api_type and api_type.startswith("azure") and "model" in create_config:
-                create_config["model"] = create_config["model"].replace(".", "")
             # construct the create params
             params = self._construct_create_params(create_config, extra_kwargs)
             # get the cache_seed, filter_func and context

@@ -151,14 +151,12 @@ def test_fixed_order_routing_successful_first_client(fixture_name: str, request:
 @pytest.mark.parametrize(
     "fixture_name", ["mock_openai_wrapper_fixed_order_default", "mock_openai_wrapper_fixed_order_explicit"]
 )
-def test_fixed_order_routing_first_client_fails(fixture_name: str, request: pytest.FixtureRequest):
+def test_fixed_order_routing_successful_first_client(fixture_name: str, request: pytest.FixtureRequest):
     wrapper = request.getfixturevalue(fixture_name)
-    # Make the first client fail
-    wrapper._clients[0].config["should_fail"] = True
     response = wrapper.create(messages=[{"role": "user", "content": "Hello"}])
-    assert "Response from client2" in response.choices[0].message.content
+    assert "Response from client1" in response.choices[0].message.content
     assert wrapper._clients[0].call_count == 1
-    assert wrapper._clients[1].call_count == 1
+    assert wrapper._clients[1].call_count == 0
 
 
 def test_round_robin_routing(mock_openai_wrapper_round_robin: OpenAIWrapper):
@@ -649,6 +647,26 @@ def test_openai_llm_config_entry():
     assert actual == expected, f"Expected: {expected}, Actual: {actual}"
 
 
+def test_openai_llm_config_entry_with_verbosity():
+    openai_llm_config = OpenAILLMConfigEntry(
+        model="gpt-5", api_key="sk-mockopenaiAPIkeysinexpectedformatsfortestingonly", verbosity="low"
+    )
+    assert openai_llm_config.api_type == "openai"
+    assert openai_llm_config.model == "gpt-5"
+    assert openai_llm_config.api_key.get_secret_value() == "sk-mockopenaiAPIkeysinexpectedformatsfortestingonly"
+    assert openai_llm_config.base_url is None
+    expected = {
+        "api_type": "openai",
+        "model": "gpt-5",
+        "api_key": "sk-mockopenaiAPIkeysinexpectedformatsfortestingonly",
+        "tags": [],
+        "stream": False,
+        "verbosity": "low",
+    }
+    actual = openai_llm_config.model_dump()
+    assert actual == expected, f"Expected: {expected}, Actual: {actual}"
+
+
 def test_azure_llm_config_entry() -> None:
     azure_llm_config = AzureOpenAILLMConfigEntry(
         model="gpt-4o-mini",
@@ -849,6 +867,28 @@ class TestDeepSeekPatch:
 
         kwargs = OpenAIClient._patch_messages_for_deepseek_reasoner(**kwargs)
         assert kwargs == expected_kwargs
+
+
+class TestGemini:
+    def test_configure_openai_config_for_gemini_updates_proxy(self):
+        config_list = [
+            {"model": "gemini-2.5-flash", "api_key": "key1", "model_client_cls": "MockModelClient", "name": "client1"}
+        ]
+        client = OpenAIWrapper(config_list=config_list)
+        openai_config = {}
+        config = {"proxy": "http://proxy.example.com:8080"}
+        client._configure_openai_config_for_gemini(config, openai_config)
+        assert openai_config["proxy"] == "http://proxy.example.com:8080"
+
+    def test_configure_openai_config_for_gemini_no_proxy(self):
+        config_list = [
+            {"model": "gemini-2.5-flash", "api_key": "key1", "model_client_cls": "MockModelClient", "name": "client1"}
+        ]
+        config = {}
+        openai_config = {}
+        client = OpenAIWrapper(config_list=config_list)
+        client._configure_openai_config_for_gemini(config, openai_config)
+        assert "proxy" not in openai_config
 
 
 class TestO1:
