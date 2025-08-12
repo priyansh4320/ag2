@@ -277,11 +277,11 @@ class TestFunctionCallEvent:
                 },
             },
         }
-        
+
         # Remove the role field logic since the actual output doesn't include it
         # if role is not None:
         #     expected["content"]["role"] = role
-            
+
         assert actual.model_dump() == expected
 
         mock = MagicMock()
@@ -316,7 +316,6 @@ class TestFunctionCallEvent:
             "type": "function_call",
             "content": {
                 "content": "Let's play a game.",
-                
                 "sender": "sender",
                 "recipient": "recipient",
                 "function_call": {
@@ -327,7 +326,7 @@ class TestFunctionCallEvent:
                 "uuid": uuid,
             },
         }
-        
+
         # Test serialization
         assert actual.model_dump() == expected
 
@@ -428,11 +427,11 @@ class TestToolCallEvent:
                 "uuid": uuid,
             },
         }
-        
+
         # Only add role if it's not None
         if role is not None:
             expected["content"]["role"] = role
-            
+
         assert actual.model_dump() == expected
 
         mock = MagicMock()
@@ -450,7 +449,8 @@ class TestToolCallEvent:
             ),
             call("Arguments: \n", '{"num_seconds": "2"}', flush=True, sep=""),
             call(
-                "\x1b[32m**************************************************************************\x1b[0m", flush=True),
+                "\x1b[32m**************************************************************************\x1b[0m", flush=True
+            ),
             call(
                 "\n",
                 "--------------------------------------------------------------------------------",
@@ -475,7 +475,7 @@ class TestToolCallEvent:
             "content": {
                 "content": None,
                 "refusal": None,
-                "role": None, 
+                "role": None,
                 "audio": None,
                 "function_call": None,
                 "sender": "sender",
@@ -505,7 +505,7 @@ class TestToolCallEvent:
                 "uuid": uuid,
             },
         }
-        
+
         # Test serialization
         assert actual.model_dump() == expected
 

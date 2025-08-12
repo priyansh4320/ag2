@@ -3476,20 +3476,19 @@ class ConversableAgent(LLMAgent):
                 raise ValueError(
                     f"The tool signature must be of the type dict. Received tool signature type {type(tool_sig)}"
                 )
-            if not free_form:
-                self._assert_valid_name(tool_sig["function"]["name"])
-                if "tools" in self.llm_config and len(self.llm_config["tools"]) > 0:
-                    if not silent_override and any(
-                        tool["function"]["name"] == tool_sig["function"]["name"] for tool in self.llm_config["tools"]
-                    ):
-                        warnings.warn(f"Function '{tool_sig['function']['name']}' is being overridden.", UserWarning)
-                    self.llm_config["tools"] = [
-                        tool
-                        for tool in self.llm_config["tools"]
-                        if tool.get("function", {}).get("name") != tool_sig["function"]["name"]
-                    ] + [tool_sig]
-                else:
-                    self.llm_config["tools"] = [tool_sig]
+            self._assert_valid_name(tool_sig["function"]["name"])
+            if "tools" in self.llm_config and len(self.llm_config["tools"]) > 0:
+                if not silent_override and any(
+                    tool["function"]["name"] == tool_sig["function"]["name"] for tool in self.llm_config["tools"]
+                ):
+                    warnings.warn(f"Function '{tool_sig['function']['name']}' is being overridden.", UserWarning)
+                self.llm_config["tools"] = [
+                    tool
+                    for tool in self.llm_config["tools"]
+                    if tool.get("function", {}).get("name") != tool_sig["function"]["name"]
+                ] + [tool_sig]
+            else:
+                self.llm_config["tools"] = [tool_sig]
 
         # Do this only if llm_config is a dict. If llm_config is LLMConfig, LLMConfig will handle this.
         if len(self.llm_config["tools"]) == 0 and isinstance(self.llm_config, dict):
@@ -3557,14 +3556,12 @@ class ConversableAgent(LLMAgent):
     ) -> Tool:
         if isinstance(func_or_tool, Tool):
             tool: Tool = func_or_tool
-            # create new tool object if name or description is not None
-            if free_form:
-                tool = Tool(func_or_tool=tool, name=name, description=description, free_form=True)
-            if name or description:
-                tool = Tool(func_or_tool=tool, name=name, description=description)
+            # create new tool object if name, description, or free_form is specified
+            if free_form or name or description:
+                tool = Tool(func_or_tool=tool, name=name, description=description, free_form=free_form)
         elif inspect.isfunction(func_or_tool):
             function: Callable[..., Any] = func_or_tool
-            tool = Tool(func_or_tool=function, name=name, description=description)
+            tool = Tool(func_or_tool=function, name=name, description=description, free_form=free_form)
         else:
             raise TypeError(f"'func_or_tool' must be a function or a Tool object, got '{type(func_or_tool)}' instead.")
         return tool
