@@ -1289,7 +1289,7 @@ class ConversableAgent(LLMAgent):
                 1. "content": content of the message, can be None.
                 2. "function_call": a dictionary containing the function name and arguments. (deprecated in favor of "tool_calls")
                 3. "tool_calls": a list of dictionaries containing the function name and arguments.
-                4. "role": role of the message, can be "assistant", "user", "function".
+                4. "role": role of the message, can be "assistant", "user", "function", "tool".
                     This field is only needed to distinguish between "function" or "assistant"/"user".
                 5. "name": In most cases, this field is not needed. When the role is "function", this field is needed to indicate the function name.
                 6. "context" (dict): the context of the message, which will be passed to
@@ -2201,7 +2201,11 @@ class ConversableAgent(LLMAgent):
                     extracted_response["function_call"]["name"]
                 )
             for tool_call in extracted_response.get("tool_calls") or []:
-                tool_call["function"]["name"] = self._normalize_name(tool_call["function"]["name"])
+                if tool_call.get("type") == "custom":
+                    tool_call["custom"]["name"] = self._normalize_name(tool_call["custom"]["name"])
+                else:
+                    tool_call["function"]["name"] = self._normalize_name(tool_call["function"]["name"])
+
                 # Remove id and type if they are not present.
                 # This is to make the tool call object compatible with Mistral API.
                 if tool_call.get("id") is None:
@@ -2422,8 +2426,17 @@ class ConversableAgent(LLMAgent):
         message = messages[-1]
         tool_returns = []
         for tool_call in message.get("tool_calls", []):
-            function_call = tool_call.get("function", {})
             tool_call_id = tool_call.get("id", None)
+
+            # Handle custom tool calls
+            if tool_call.get("type") == "custom" and "custom" in tool_call:
+                function_call = {
+                    "name": tool_call["custom"].get("name"),
+                    "arguments": tool_call["custom"].get("input", "{}"),
+                }
+            else:
+                function_call = tool_call.get("function", {})
+
             func = self._function_map.get(function_call.get("name", None), None)
             if inspect.iscoroutinefunction(func):
                 coro = self.a_execute_function(function_call, call_id=tool_call_id)
@@ -2458,7 +2471,17 @@ class ConversableAgent(LLMAgent):
 
     async def _a_execute_tool_call(self, tool_call):
         tool_call_id = tool_call["id"]
-        function_call = tool_call.get("function", {})
+
+        # Handle custom tool calls
+        if tool_call.get("type") == "custom" and "custom" in tool_call:
+            function_call = {
+                "name": tool_call["custom"].get("name"),
+                "arguments": tool_call["custom"].get("input", "{}"),
+            }
+        else:
+            # Handle standard function tool calls
+            function_call = tool_call.get("function", {})
+
         _, func_return = await self.a_execute_function(function_call, call_id=tool_call_id)
         return {
             "tool_call_id": tool_call_id,
@@ -3368,9 +3391,6 @@ class ConversableAgent(LLMAgent):
             logger.error(error_msg)
             raise AssertionError(error_msg)
 
-        if free_form:
-            func_sig["function"]["type"] = "custom"
-
         if is_remove:
             if "functions" not in self.llm_config or len(self.llm_config["functions"]) == 0:
                 error_msg = f"The agent config doesn't have function {func_sig}."
@@ -3404,6 +3424,11 @@ class ConversableAgent(LLMAgent):
         if len(self.llm_config["functions"]) == 0 and isinstance(self.llm_config, dict):
             del self.llm_config["functions"]
 
+        if free_form:
+            func_sig["type"] = "custom"
+            if "function" in func_sig:
+                func_sig["custom"] = func_sig.pop("function")
+
         self.client = OpenAIWrapper(**self.llm_config)
 
     def update_tool_signature(
@@ -3425,8 +3450,6 @@ class ConversableAgent(LLMAgent):
             error_msg = "To update a tool signature, agent must have an llm_config"
             logger.error(error_msg)
             raise AssertionError(error_msg)
-        if free_form:
-            tool_sig["function"]["type"] = "custom"
 
         if is_remove:
             if "tools" not in self.llm_config or len(self.llm_config["tools"]) == 0:
@@ -3453,7 +3476,8 @@ class ConversableAgent(LLMAgent):
                 raise ValueError(
                     f"The tool signature must be of the type dict. Received tool signature type {type(tool_sig)}"
                 )
-            self._assert_valid_name(tool_sig["function"]["name"])
+            if not free_form:
+                self._assert_valid_name(tool_sig["function"]["name"])
             if "tools" in self.llm_config and len(self.llm_config["tools"]) > 0:
                 if not silent_override and any(
                     tool["function"]["name"] == tool_sig["function"]["name"] for tool in self.llm_config["tools"]
@@ -3470,6 +3494,10 @@ class ConversableAgent(LLMAgent):
         # Do this only if llm_config is a dict. If llm_config is LLMConfig, LLMConfig will handle this.
         if len(self.llm_config["tools"]) == 0 and isinstance(self.llm_config, dict):
             del self.llm_config["tools"]
+        if free_form:
+            tool_sig["type"] = "custom"
+            if "function" in tool_sig:
+                tool_sig["custom"] = tool_sig.pop("function")
 
         self.client = OpenAIWrapper(**self.llm_config)
 
@@ -3530,10 +3558,10 @@ class ConversableAgent(LLMAgent):
         if isinstance(func_or_tool, Tool):
             tool: Tool = func_or_tool
             # create new tool object if name or description is not None
-            if name or description:
-                tool = Tool(func_or_tool=tool, name=name, description=description)
             if free_form:
                 tool = Tool(func_or_tool=tool, name=name, description=description, free_form=True)
+            if name or description:
+                tool = Tool(func_or_tool=tool, name=name, description=description)
         elif inspect.isfunction(func_or_tool):
             function: Callable[..., Any] = func_or_tool
             tool = Tool(func_or_tool=function, name=name, description=description)
