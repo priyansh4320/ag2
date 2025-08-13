@@ -153,6 +153,16 @@ class FunctionCallEvent(BasePrintReceivedEvent):
 
 
 class ToolCall(BaseModel):
+    """
+    Represents a tool call, which can be a function or a custom tool.
+
+    Params:
+        id (Optional[str]): The unique identifier for the tool call.
+        function (Optional[FunctionCall]): The function call details if type is 'function'.
+        custom (Optional[Dict[str, Any]]): The custom tool details if type is 'custom'.
+        type (str): The type of tool call, e.g., 'function' or 'custom'.
+    """
+
     id: Optional[str] = None
     function: Optional[FunctionCall] = None
     custom: Optional[Dict[str, Any]] = None
