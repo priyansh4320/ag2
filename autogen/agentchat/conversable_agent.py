@@ -3381,7 +3381,7 @@ class ConversableAgent(LLMAgent):
             func_sig (str or dict): description/name of the function to update/remove to the model. See: https://platform.openai.com/docs/api-reference/chat/create#chat/create-functions
             is_remove: whether removing the function from llm_config with name 'func_sig'
             silent_override: whether to print warnings when overriding functions.
-            free_form: whether to allow the function to be a free-form string.
+            free_form: allow the function to take free-form inputs.
 
         Deprecated as of [OpenAI API v1.1.0](https://github.com/openai/openai-python/releases/tag/v1.1.0)
         See https://platform.openai.com/docs/api-reference/chat/create#chat-create-function_call
@@ -3444,7 +3444,7 @@ class ConversableAgent(LLMAgent):
             tool_sig (str or dict): description/name of the tool to update/remove to the model. See: https://platform.openai.com/docs/api-reference/chat/create#chat-create-tools
             is_remove: whether removing the tool from llm_config with name 'tool_sig'
             silent_override: whether to print warnings when overriding functions.
-            free_form: whether to allow the tool to be a free-form string.
+            free_form: allow the tool to take free-form inputs.
         """
         if not self.llm_config:
             error_msg = "To update a tool signature, agent must have an llm_config"
@@ -3592,7 +3592,7 @@ class ConversableAgent(LLMAgent):
                 `"function"` if `"tool"` doesn't work.
                 See [Azure OpenAI documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/function-calling?tabs=python) for details.
             silent_override (bool): whether to suppress any override warning messages.
-            free_form (bool): whether to allow the function to be a free-form string.
+            free_form (bool): allow the function to take free-form inputs.
 
         Returns:
             The decorator for registering a function to be used by an agent.
@@ -3660,7 +3660,7 @@ class ConversableAgent(LLMAgent):
             api_style: the API style for function call ("tool" or "function").
             is_remove: whether to remove the function or tool.
             silent_override: whether to suppress any override warning messages.
-            free_form: whether to allow the tool to be a free-form string.
+            free_form: allow the tool to take free-form inputs.
 
         Returns:
             None
@@ -4135,7 +4135,7 @@ def register_function(
         description: description of the function. The description is used by LLM to decode whether the function
             is called. Make sure the description is properly describing what the function does or it might not be
             called by LLM when needed.
-        free_form: whether to allow the function to be a free-form string.
+        free_form: allow the function to take free-form inputs.
 
     """
     f = caller.register_for_llm(name=name, description=description, free_form=free_form)(f)

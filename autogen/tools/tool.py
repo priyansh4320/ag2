@@ -46,7 +46,7 @@ class Tool:
             description (str): The description of the tool.
             func_or_tool (Union[Tool, Callable[..., Any]]): The function or Tool instance to create a Tool from.
             parameters_json_schema (Optional[dict[str, Any]]): A schema describing the parameters that the function accepts. If None, the schema will be generated from the function signature.
-            free_form (bool): Whether to allow the tool to be a free-form string.
+            free_form (bool): allow the tool to take free-form inputs.
         """
         self._free_form: bool = free_form
         if isinstance(func_or_tool, Tool):
@@ -181,7 +181,7 @@ def tool(
     Args:
         name (str): The name of the tool.
         description (str): The description of the tool.
-        free_form (bool): Whether to allow the tool to be a free-form string.
+        free_form (bool): allow the tool to take free-form inputs.
 
     Returns:
         Callable[[Callable[..., Any]], Tool]: A decorator that creates a Tool from a function.
