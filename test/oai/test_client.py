@@ -148,17 +148,6 @@ def test_fixed_order_routing_successful_first_client(fixture_name: str, request:
     assert wrapper._clients[1].call_count == 0
 
 
-@pytest.mark.parametrize(
-    "fixture_name", ["mock_openai_wrapper_fixed_order_default", "mock_openai_wrapper_fixed_order_explicit"]
-)
-def test_fixed_order_routing_successful_first_client(fixture_name: str, request: pytest.FixtureRequest):
-    wrapper = request.getfixturevalue(fixture_name)
-    response = wrapper.create(messages=[{"role": "user", "content": "Hello"}])
-    assert "Response from client1" in response.choices[0].message.content
-    assert wrapper._clients[0].call_count == 1
-    assert wrapper._clients[1].call_count == 0
-
-
 def test_round_robin_routing(mock_openai_wrapper_round_robin: OpenAIWrapper):
     # First call
     response1 = mock_openai_wrapper_round_robin.create(messages=[{"role": "user", "content": "Hello 1"}])
@@ -698,6 +687,8 @@ def test_deepseek_llm_config_entry() -> None:
     deepseek_llm_config = DeepSeekLLMConfigEntry(
         api_key="fake_api_key",
         model="deepseek-chat",
+        max_tokens=8192,
+        temperature=0.5,
     )
 
     expected = {
@@ -720,13 +711,12 @@ def test_deepseek_llm_config_entry() -> None:
         "config_list": [expected],
     }
 
-    with pytest.raises(ValidationError) as e:
+    with pytest.raises(ValidationError, match="Value error, temperature and top_p cannot be set at the same time"):
         deepseek_llm_config = DeepSeekLLMConfigEntry(
             model="deepseek-chat",
             temperature=1,
             top_p=0.8,
         )
-    assert "Value error, temperature and top_p cannot be set at the same time" in str(e.value)
 
 
 class TestOpenAIClientBadRequestsError:
