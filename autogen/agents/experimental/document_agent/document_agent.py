@@ -84,6 +84,7 @@ class DocAgent(ConversableAgent):
         parsed_docs_path: str | Path | None = None,
         collection_name: str | None = None,
         query_engine: RAGQueryEngine | None = None,
+        rag_config: dict[str, dict[str, Any]] | None = None,  # NEW: {"vector": {}, "graph": {...}}
     ):
         """Initialize the DocAgent.
 
@@ -94,6 +95,7 @@ class DocAgent(ConversableAgent):
             parsed_docs_path: The path where parsed documents will be stored.
             collection_name: The unique name for the data store collection.
             query_engine: The query engine to use for querying documents.
+            rag_config: Configuration for RAG engines {"vector": {}, "graph": {...}}.
         """
         name = name or "DocAgent"
         llm_config = llm_config or LLMConfig.get_current_llm_config()
@@ -120,6 +122,7 @@ class DocAgent(ConversableAgent):
             query_engine=query_engine,
             parsed_docs_path=parsed_docs_path,
             collection_name=collection_name,
+            rag_config=rag_config,  # NEW
         )
 
         def update_ingested_documents() -> None:
