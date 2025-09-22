@@ -124,7 +124,7 @@ class DocAgent(ConversableAgent):
             query_engine = VectorChromaCitationQueryEngine(
                 collection_name=collection_name, enable_query_citations=True, citation_chunk_size=citation_chunk_size
             )
-        else:
+        elif query_engine is None:
             query_engine = VectorChromaQueryEngine(collection_name=collection_name)
 
         super().__init__(
