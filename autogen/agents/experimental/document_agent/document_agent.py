@@ -6,7 +6,6 @@ import logging
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
-from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -16,12 +15,10 @@ from ....agentchat.group.context_variables import ContextVariables
 from ....agentchat.group.multi_agent_chat import initiate_group_chat
 from ....agentchat.group.patterns.pattern import DefaultPattern
 from ....agentchat.group.targets.transition_target import AgentTarget, TerminateTarget
-from ....agentchat.group.targets.transition_target import AgentTarget, TerminateTarget
 from ....doc_utils import export_module
 from ....llm_config import LLMConfig
 from .chroma_query_engine import VectorChromaCitationQueryEngine, VectorChromaQueryEngine
 from .document_utils import Ingest, Query
-from .task_manager import TaskManagerAgent
 from .task_manager import TaskManagerAgent
 
 __all__ = ["DocAgent"]
