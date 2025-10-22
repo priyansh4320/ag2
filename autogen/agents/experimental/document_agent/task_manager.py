@@ -119,7 +119,7 @@ class TaskManagerAgent(ConversableAgent):
                 input_path: The path to validate
 
             Returns:
-                str: The original path if valid
+                str: The validated path
 
             Raises:
                 ValueError: If the path is invalid or suspicious
@@ -130,17 +130,31 @@ class TaskManagerAgent(ConversableAgent):
 
             # For file paths, resolve and validate
             try:
-                resolved_path = Path(input_path).resolve()
+                input_path_obj = Path(input_path)
+                resolved_path = input_path_obj.resolve()
+
+                # Define allowed base directories
+                allowed_bases = [
+                    Path.cwd().resolve(),
+                    Path(self.parsed_docs_path).resolve(),
+                ]
+
+                # Check if resolved path is within allowed directories
+                is_allowed = any(
+                    resolved_path.is_relative_to(base)
+                    if hasattr(resolved_path, "is_relative_to")
+                    else str(resolved_path).startswith(str(base))
+                    for base in allowed_bases
+                )
+
+                if not is_allowed:
+                    raise ValueError(f"Path outside allowed directories: {input_path}")
 
                 # Check if path exists
                 if not resolved_path.exists():
                     raise ValueError(f"Path does not exist: {input_path}")
 
-                # Prevent directory traversal patterns
-                if ".." in input_path or input_path.startswith("/etc/") or input_path.startswith("/sys/"):
-                    raise ValueError(f"Suspicious path detected: {input_path}")
-
-                return input_path
+                return str(resolved_path)
             except Exception as e:
                 raise ValueError(f"Invalid path: {input_path}. Error: {e}")
 
@@ -233,7 +247,14 @@ class TaskManagerAgent(ConversableAgent):
 
             try:
                 # Process documents concurrently using ThreadPoolExecutor
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    # Fallback if not running in async context
+                    logger.warning("No running event loop found, creating new one")
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
                 futures = [
                     loop.run_in_executor(self.executor, _process_single_document, self, doc_path)
                     for doc_path in documents_to_ingest
@@ -372,7 +393,9 @@ class TaskManagerAgent(ConversableAgent):
                 logger.info("=" * 80)
 
                 # Update context variables
-                context_variables["QueriesToRun"].pop(0)  # Remove processed batch
+                context_variables["QueriesToRun"] = (
+                    [] if context_variables.get("QueriesToRun") else context_variables["QueriesToRun"]
+                )  # Remove processed batch
                 context_variables["CompletedTaskCount"] += 1
 
                 # Store query results with citations
@@ -414,8 +437,9 @@ class TaskManagerAgent(ConversableAgent):
 
     def cleanup(self) -> None:
         """Explicitly clean up ThreadPoolExecutor resources."""
-        if hasattr(self, "executor") and self.executor is not None:
+        if hasattr(self, "executor") and self.executor is not None and not self._executor_shutdown:  # type: ignore[has-type]
             self.executor.shutdown(wait=True)
+            self._executor_shutdown = True
             logger.info("TaskManagerAgent: ThreadPoolExecutor shutdown complete")
 
     def __enter__(self) -> "TaskManagerAgent":

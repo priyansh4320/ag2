@@ -26,6 +26,8 @@ __all__ = ["DocAgent"]
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CITATION_CHUNK_SIZE = 512
+
 DEFAULT_SYSTEM_MESSAGE = """
     You are a document agent.
     You are given a list of documents to ingest and a list of queries to perform.
@@ -91,7 +93,7 @@ class DocAgent(ConversableAgent):
         collection_name: str | None = None,
         query_engine: RAGQueryEngine | None = None,
         enable_citations: bool = False,
-        citation_chunk_size: int = 512,
+        citation_chunk_size: int = DEFAULT_CITATION_CHUNK_SIZE,
         update_inner_agent_system_message: dict[str, Any] | None = None,
     ):
         """Initialize the DocAgent.
