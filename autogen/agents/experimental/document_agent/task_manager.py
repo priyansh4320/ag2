@@ -5,7 +5,9 @@
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from autogen import ConversableAgent
@@ -45,7 +47,38 @@ You are task manager agent responsible for processing document ingestion and que
 
 @export_module("autogen.agents.experimental")
 class TaskManagerAgent(ConversableAgent):
-    """TaskManagerAgent with integrated tools for document ingestion and query processing."""
+    """TaskManagerAgent with integrated tools for document ingestion and query processing.
+
+    This agent uses ThreadPoolExecutor for concurrent processing of documents and queries,
+    providing significant performance improvements for batch operations.
+
+    Thread Safety:
+        The agent uses locks to protect shared state (_temp_citations_store) accessed
+        by concurrent threads. Context variables are managed at the async level.
+
+    Resource Management:
+        Use as a context manager or call cleanup() explicitly:
+
+        >>> with TaskManagerAgent(...) as agent:
+        ...     await agent.ingest_documents([...])
+
+        Or:
+
+        >>> agent = TaskManagerAgent(...)
+        >>> try:
+        ...     await agent.ingest_documents([...])
+        ... finally:
+        ...     agent.cleanup()
+
+    Performance:
+        - Concurrent processing scales with max_workers parameter
+        - Default thread pool size follows ThreadPoolExecutor defaults
+        - Suitable for I/O-bound document processing operations
+
+    Security:
+        - Input paths are validated to prevent path traversal attacks
+        - URLs are allowed but file paths are checked for suspicious patterns
+    """
 
     def __init__(
         self,
@@ -76,12 +109,52 @@ class TaskManagerAgent(ConversableAgent):
         self.parsed_docs_path = Path(parsed_docs_path) if parsed_docs_path else Path("./parsed_docs")
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self._temp_citations_store: dict[str, list[dict[str, str]]] = {}
+        self._temp_citations_lock = Lock()
+
+        def _validate_path(self: "TaskManagerAgent", input_path: str) -> str:  # type: ignore[no-untyped-def]
+            """Validate and sanitize file path to prevent path traversal attacks.
+
+            Args:
+                self: The TaskManagerAgent instance
+                input_path: The path to validate
+
+            Returns:
+                str: The original path if valid
+
+            Raises:
+                ValueError: If the path is invalid or suspicious
+            """
+            # Check for URL (allow URLs to pass through)
+            if input_path.startswith(("http://", "https://")):
+                return input_path
+
+            # For file paths, resolve and validate
+            try:
+                resolved_path = Path(input_path).resolve()
+
+                # Check if path exists
+                if not resolved_path.exists():
+                    raise ValueError(f"Path does not exist: {input_path}")
+
+                # Prevent directory traversal patterns
+                if ".." in input_path or input_path.startswith("/etc/") or input_path.startswith("/sys/"):
+                    raise ValueError(f"Suspicious path detected: {input_path}")
+
+                return input_path
+            except Exception as e:
+                raise ValueError(f"Invalid path: {input_path}. Error: {e}")
 
         def _process_single_document(self: "TaskManagerAgent", input_file_path: str) -> tuple[str, bool, str]:
             """Process a single document. Returns (path, success, error_msg)."""
             try:
+                # Validate path first to prevent path traversal attacks
+                try:
+                    validated_path = self._validate_path(input_file_path)  # type: ignore[attr-defined]
+                except ValueError as ve:
+                    return (input_file_path, False, str(ve))
+
                 output_files = docling_parse_docs(
-                    input_file_path=input_file_path,
+                    input_file_path=validated_path,
                     output_dir_path=self.parsed_docs_path,
                     output_formats=["markdown"],
                 )
@@ -119,9 +192,10 @@ class TaskManagerAgent(ConversableAgent):
                     logger.info(f"Citations: {txt_citations}")
 
                     # Store citations in a temporary store that can be accessed by execute_query
-                    if not hasattr(self, "_temp_citations_store"):
-                        self._temp_citations_store = {}
-                    self._temp_citations_store[query_text] = txt_citations
+                    with self._temp_citations_lock:
+                        if not hasattr(self, "_temp_citations_store"):
+                            self._temp_citations_store = {}
+                        self._temp_citations_store[query_text] = txt_citations
 
                     return (query_text, f"Query: {query_text}\nAnswer: {answer}")
                 else:
@@ -155,7 +229,7 @@ class TaskManagerAgent(ConversableAgent):
                 context_variables["QueriesToRun"] = []
 
             # Add current batch to pending ingestions
-            context_variables["DocumentsToIngest"].append(documents_to_ingest)
+            context_variables["DocumentsToIngest"].extend(documents_to_ingest)
 
             try:
                 # Process documents concurrently using ThreadPoolExecutor
@@ -169,9 +243,11 @@ class TaskManagerAgent(ConversableAgent):
                 results = await asyncio.gather(*futures, return_exceptions=True)
 
                 successfully_ingested = []
+                failed_documents: list[tuple[str, str]] = []
                 for result in results:
                     if isinstance(result, Exception):
                         logger.warning(f"Document processing failed with exception: {result}")
+                        failed_documents.append(("unknown", f"Exception: {result}"))
                         continue
 
                     # Type check to ensure result is the expected tuple
@@ -181,20 +257,24 @@ class TaskManagerAgent(ConversableAgent):
                             successfully_ingested.append(doc_path)
                         else:
                             logger.warning(f"Failed to ingest document {doc_path}: {error_msg}")
+                            failed_documents.append((doc_path, error_msg))
+
                     else:
                         logger.warning(f"Unexpected result format: {result}")
+                        failed_documents.append(("unknown", f"Unexpected result format: {result}"))
 
-                # Enhanced logging with agent and tool title
+                # logging with agent and tool title
                 logger.info("=" * 80)
                 logger.info("TOOL: ingest_documents (CONCURRENT)")
                 logger.info("AGENT: TaskManagerAgent")
                 logger.info(f"DOCUMENTS: {documents_to_ingest}")
                 logger.info(f"SUCCESSFULLY INGESTED: {successfully_ingested}")
+                logger.info(f"FAILED: {failed_documents}")  # ADD THIS
                 logger.info("=" * 80)
 
                 # Update context variables with successful ingestions
                 if successfully_ingested:
-                    context_variables["DocumentsIngested"].append(successfully_ingested)
+                    context_variables["DocumentsIngested"].extend(successfully_ingested)
                     context_variables["CompletedTaskCount"] += 1
 
                 # Clear processed tasks
@@ -246,7 +326,7 @@ class TaskManagerAgent(ConversableAgent):
                 context_variables["Citations"] = []
 
             # Add current batch to pending queries
-            context_variables["QueriesToRun"].append(queries_to_run)
+            context_variables["QueriesToRun"].extend(queries_to_run)
 
             try:
                 # Clear temporary citations store before processing
@@ -332,7 +412,21 @@ class TaskManagerAgent(ConversableAgent):
             functions=[ingest_documents, execute_query],  # Add initiate_tasks
         )
 
-    def __del__(self) -> None:
-        """Clean up the ThreadPoolExecutor when the agent is destroyed."""
-        if hasattr(self, "executor"):
+    def cleanup(self) -> None:
+        """Explicitly clean up ThreadPoolExecutor resources."""
+        if hasattr(self, "executor") and self.executor is not None:
             self.executor.shutdown(wait=True)
+            logger.info("TaskManagerAgent: ThreadPoolExecutor shutdown complete")
+
+    def __enter__(self) -> "TaskManagerAgent":
+        """Support context manager protocol."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Clean up resources when exiting context."""
+        self.cleanup()
+
+    def __del__(self) -> None:
+        """Fallback cleanup when object is destroyed."""
+        with suppress(Exception):
+            self.cleanup()

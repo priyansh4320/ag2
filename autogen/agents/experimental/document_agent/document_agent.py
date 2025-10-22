@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import logging
 from copy import deepcopy
 from pathlib import Path
@@ -228,13 +229,18 @@ class DocAgent(ConversableAgent):
                 and "content" in last_message
             ):
                 try:
-                    import json
-
                     document_task_data = json.loads(last_message["content"])
 
-                    # Extract ingestions and queries
+                    # Validate structure
+                    if not isinstance(document_task_data, dict):
+                        raise ValueError("DocumentTask must be a dictionary")
+
+                    # Extract ingestions and queries with validation
                     ingestions = [Ingest(**ing) for ing in document_task_data.get("ingestions", [])]
                     queries = [Query(**q) for q in document_task_data.get("queries", [])]
+
+                    if not isinstance(ingestions, list) or not isinstance(queries, list):
+                        raise ValueError("Ingestions and queries must be lists")
 
                     # Update context variables with new tasks
                     existing_ingestions = context_variables.get("DocumentsToIngest", []) or []
@@ -260,6 +266,10 @@ class DocAgent(ConversableAgent):
 
                     logger.info(f"Processed triage output: {len(ingestions)} ingestions, {len(queries)} queries")
 
+                except json.JSONDecodeError as je:
+                    logger.error(f"Failed to parse JSON from triage output: {je}")
+                except (ValueError, TypeError) as ve:
+                    logger.error(f"Invalid DocumentTask structure: {ve}")
                 except Exception as e:
                     logger.warning(f"Failed to process triage output: {e}")
 
