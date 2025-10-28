@@ -143,15 +143,6 @@ def test_agentchat_grok_sbom_analysis(save=False):
     run_notebook("agentchat_grok_sbom_analysis.ipynb", save=save)
 
 
-@pytest.mark.skipif(
-    not sys.version.startswith("3.13"),
-    reason="do not run if py!=3.13",
-)
-@run_for_optional_imports(["openai"], "openai")
-def test_agentchat_grok_sbom_analysis(save=False):
-    run_notebook("agentchat_grok_sbom_analysis.ipynb", save=save)
-
-
 @run_for_optional_imports("openai", "openai")
 @pytest.mark.skipif(
     not sys.version.startswith("3.13"),
